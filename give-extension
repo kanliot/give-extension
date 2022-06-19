@@ -39,7 +39,6 @@ sub yes_if_rename {
 open NULL, '>', '/dev/null'; open STDERR, ">&", \*NULL;  # redirect STDERR to /dev/null 
 
 for my $file(@ARGV) { 
-# oops now STDERR is duped to STDOUT, which is a problem if STDERR is chatty
 	open FH, '-|', "xdg-mime", qw( query filetype), $file;  # todo move this to after yes_if_rename
 	my $ft = readline FH;
 	exit $?>>8 unless close FH;  # close returns nonzero if pipe was ok
