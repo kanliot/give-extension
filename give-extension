@@ -1,0 +1,58 @@
+#! /usr/bin/perl -w
+use strict;
+use 5.010;
+
+# basically take files with either no extension, or unrecognised extension and flag them to be renamed correctly as they are processed further. 
+# only file extensions in the @ext array are recognised.  
+# expects to call these commands: `python3 -m mimetypes`, xdg-query, mv 
+
+# currently fails silently if the mimetype is undetected. 
+# does not currently fix the file extension if it *HAS* an extension, but it's the wrong extension
+
+# redistribution permitted under artistic license, written by karl anliot 2022 
+
+# see https://raw.githubusercontent.com/sh4dak/extfixer/master/extensions.csv
+
+
+
+my @ext=qw(3gp 7z aac avi bz2 csv epub flac gif gifv html htm jpg jpeg js json m3u gz odp ods odt ogg ogv otf mp4 mp3 md mka mkv opus pdf png py rar rtf sh ttf wav txt webm webp xml xz zst zip m4a);
+my %ext = map {"." . $_, 1} @ext;  # map a list to a hash with keys being ".ext" and values being "1"
+# naturally should take multi-args 
+# no idea how to handle errors brain still doing backflips
+# note: 
+# we have four different conceptions of file-type: the regular expression, the mime detected type, and python3's return value, and the hash... 
+
+
+sub yes_if_rename {
+# don't be dumb.  the regex doesn't provide extension if it's not there. 
+	for(@_) { 
+		if( /((\.[^,\/.\s]{0,8}))$/ ) {  # match $_, fill $1 to a concept of file extension
+			return 1 if !$ext{lc $1};    # do if not in hash
+		} else { 
+			return 1;
+		}
+	}
+	return;
+}
+
+
+open NULL, '>', '/dev/null'; open STDERR, ">&", \*NULL;  # redirect STDERR to /dev/null 
+
+for my $file(@ARGV) { 
+# oops now STDERR is duped to STDOUT, which is a problem if STDERR is chatty
+	open FH, '-|', "xdg-mime", qw( query filetype), shift;
+	my $ft = readline FH;
+	exit $?>>8 unless close FH;  # close returns nonzero if pipe was ok
+	chomp $ft;
+	if ( yes_if_rename($file)) {
+		open FH, '-|', qw(python3 -m mimetypes --extension), $ft or die; 
+		my $ext=readline FH; chomp $ext;
+		# error from `python3` looks like "I don't know anything about type asdf\n" or "" from stdout
+		if ($ext eq "" or $ext =~ /I don.t know/) {
+			say "Fatal! can't fix filetype: $ft";
+			exit 1;
+		}
+
+		system 'mv', "-v", $file, $file . $ext;
+	}
+}
